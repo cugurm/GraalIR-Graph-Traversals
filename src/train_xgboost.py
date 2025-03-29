@@ -107,8 +107,8 @@ class XGBoostMulticlassClassifier:
     def tune_hyperparameters(self, X_train, y_train, sample_weights, scoring):
         if self.standardize:
             param_grid = {
-                'model__max_depth': [3, 5, 7],
-                'model__n_estimators': [50, 100, 200],
+                'model__max_depth': [7, 10, 15],
+                'model__n_estimators': [200, 250, 300],
             }
         else:
             param_grid = {
@@ -213,46 +213,46 @@ if __name__ == "__main__":
     # X, y = X.iloc[:20000, :], y.iloc[:20000, :]
 
     # train XGBoost ML model for multiclass classification  
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring='accuracy')
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring='accuracy')
     
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
-    model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    weights = {
-        0: 100,  # "BFS-EQ-16-0" 
-        1: 100,  # "DFS-ES-16-0" 
-        2: 5,    # "BFS-EQ-64-0"
-        3: 100,  # "DFS-LL-0-0"
-        4: 10,   # "DFS-ES-256-0"
-        5: 10,   # "DFS-ES-64-0"
-        6: 10,   # "BFS-EQ-256-0"
-        7: 1,    # "BFS-AD-0-0"
-        8: 20,   # "BFS-LL-0-0"
-        9: 100   # "DFS-AD-0-0"
-    }
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_accuracy', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
+    # weights = {
+    #     0: 100,  # "BFS-EQ-16-0" 
+    #     1: 100,  # "DFS-ES-16-0" 
+    #     2: 5,    # "BFS-EQ-64-0"
+    #     3: 100,  # "DFS-LL-0-0"
+    #     4: 10,   # "DFS-ES-256-0"
+    #     5: 10,   # "DFS-ES-64-0"
+    #     6: 10,   # "BFS-EQ-256-0"
+    #     7: 1,    # "BFS-AD-0-0"
+    #     8: 20,   # "BFS-LL-0-0"
+    #     9: 100   # "DFS-AD-0-0"
+    # }
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_accuracy', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring='accuracy')
+
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_f1', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring='accuracy')
+
+    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy_standardize_extended_grid', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     model.train(X, y, scoring='accuracy')
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_f1', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
-
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy_standardize', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
-
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
-
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1_standardize', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1_standardize_extended_grid', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
 
