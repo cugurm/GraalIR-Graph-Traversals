@@ -127,6 +127,12 @@ class XGBoostMulticlassClassifier:
         else:
             grid_search.fit(X_train, y_train)
         
+        # Save best configuration
+        config_path = os.path.join(self.training_dir, 'best_params') 
+        with open(config_path, 'w') as fp:
+            json.dump(grid_search.best_params_, fp)
+        print('Saved best parameters to: {}'.format(config_path))
+        
         return grid_search.best_params_
 
     def evaluate(self, X, y, dataset_name):
