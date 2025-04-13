@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd 
 from matplotlib import pyplot as plt
 
-DATASET_CSV = '../data/dataset.csv'
-DATASET_JSON = '../data/dataset.json'
+DATASET_CSV = '../data_v2/dataset.csv'
+DATASET_JSON = '../data_v2/dataset.json'
+STATS_DIR = '../stats_v2/'
 
 """
 [
@@ -18,29 +19,42 @@ DATASET_JSON = '../data/dataset.json'
         "depth": 9,
         "width": 3,
         "diameter": 10,
+        "number of binary splits": 9,
+        "number of non binary splits": 0,
+        "total number of splits": 9,
+        "max cardinality": 2,
+        "avg cardinality including binary splits": 2.0,
+        "avg cardinality excluding binary splits": 0.0,
         "configuration": "BFS-EQ-16-0",
         "avg time": 1964.46875
     },
     {
-        "name": "Harness.main(java.lang.String[])",
-        "number of nodes": 20,
-        "number of edges": 19,
-        "depth": 9,
-        "width": 3,
-        "diameter": 10,
-        "configuration": "DFS-ES-16-0",
-        "avg time": 2967.59375
+        "name": "Harness.makeHarnessClassLoader()",
+        "number of nodes": 34,
+        "number of edges": 33,
+        "depth": 13,
+        "width": 5,
+        "diameter": 14,
+        "number of binary splits": 15,
+        "number of non binary splits": 0,
+        "total number of splits": 15,
+        "max cardinality": 2,
+        "avg cardinality including binary splits": 2.0,
+        "avg cardinality excluding binary splits": 0.0,
+        "configuration": "BFS-EQ-16-0",
+        "avg time": 3144.625
     },
     ...
 ]
 """
 
-FEATURE_NAMES = ('number of nodes', 'number of edges', 'depth', 'width', 'diameter')
+FEATURE_NAMES = ('number of nodes', 'number of edges', 'depth', 'width', 'diameter', 'number of binary splits', 'number of non binary splits', 'total number of splits', 
+                 'max cardinality', 'avg cardinality including binary splits', 'avg cardinality excluding binary splits')
 LABELS = ('BFS-EQ-16-0', 'DFS-ES-16-0', 'BFS-EQ-64-0', 'DFS-LL-0-0', 'DFS-ES-256-0', 'DFS-ES-64-0', 'BFS-EQ-256-0', 'BFS-AD-0-0', 'BFS-LL-0-0', 'DFS-AD-0-0')
 
-DATASET_X = '../data/dataset_x.csv'
-DATASET_Y = '../data/dataset_y.csv'
-DATASET_CONFIG = '../data/dataset_config.json'
+DATASET_X = '../data_v2/dataset_x.csv'
+DATASET_Y = '../data_v2/dataset_y.csv'
+DATASET_CONFIG = '../data_v2/dataset_config.json'
 
 def parse_feature_vector(data: dict) -> list[int]:
     """
@@ -76,6 +90,7 @@ def plot_distribution(y, labels):
 if __name__ == "__main__":
 
     parsed_dataset = {}
+    configs = set()
     with open(DATASET_JSON, 'r') as f:
         dataset = json.load(f)
         
@@ -88,6 +103,9 @@ if __name__ == "__main__":
             if (fname, fvector) not in parsed_dataset:
                 parsed_dataset[(fname, fvector)] = []
             parsed_dataset[(fname, fvector)].append((config, time))
+            configs.add(config)
+
+        assert configs == set(LABELS), 'Invalid labels specified: {}. Collected labels: {}'.format(LABELS, configs)
 
 
     ids, x, y = [], [], []
@@ -109,7 +127,7 @@ if __name__ == "__main__":
 
     # Plot stats
     print('Number of elements: ', len(x))
-    x.describe().to_csv('../stats/features_stats.csv')
+    x.describe().to_csv(os.path.join(STATS_DIR, 'features_stats.csv'))
     plot_distribution(y, LABELS)
 
     # Save dataset
