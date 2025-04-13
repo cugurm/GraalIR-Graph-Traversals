@@ -19,10 +19,11 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-DATASET_X = '../data/dataset_x.csv'
-DATASET_Y = '../data/dataset_y.csv'
-DATASET_CONFIG = '../data/dataset_config.json'
+DATASET_X = '../data_v2/dataset_x.csv'
+DATASET_Y = '../data_v2/dataset_y.csv'
+DATASET_CONFIG = '../data_v2/dataset_config.json'
 RANDOM_STATE = 1234
+MODELS_DIR = '../models_v2/'
 
 
 class XGBoostMulticlassClassifier:
@@ -50,27 +51,29 @@ class XGBoostMulticlassClassifier:
         )
 
         # Compute instance weights if present
-        sample_weights = None
+        sample_weights_train = None
         if self.use_instance_weights:
             if self.manual_weights:
-                sample_weights = np.array([self.manual_weights[label] for label in y_train.iloc[:, 0]])
+                sample_weights_train = np.array([self.manual_weights[label] for label in y_train.iloc[:, 0]])
+                sample_weights_test = np.array([self.manual_weights[label] for label in y_test.iloc[:, 0]])
             else:
                 class_weights = self._compute_class_weights(y_train)
-                sample_weights = np.array([class_weights[int(label)] for label in y_train.iloc[:, 0]])
+                sample_weights_train = np.array([class_weights[int(label)] for label in y_train.iloc[:, 0]])
+                sample_weights_test = np.array([class_weights[int(label)] for label in y_test.iloc[:, 0]])
 
         # Perform hyperparameter tuning if enabled
-        best_params = self.tune_hyperparameters(X_train, y_train, sample_weights, scoring) if use_grid_search else {}
+        best_params = self.tune_hyperparameters(X_train, y_train, sample_weights_train, scoring) if use_grid_search else {}
 
         # Train final model
         self.model = self._define_model(best_params)
         if self.standardize:
-            self.model.fit(X_train, y_train, model__sample_weight=sample_weights)
+            self.model.fit(X_train, y_train, model__sample_weight=sample_weights_train)
         else:
-            self.model.fit(X_train, y_train, sample_weight=sample_weights)
+            self.model.fit(X_train, y_train, sample_weight=sample_weights_train)
 
         # Evaluate model
-        self.evaluate(X_train, y_train, 'training')
-        self.evaluate(X_test, y_test, 'test')
+        self.evaluate(X_train, y_train, 'training', sample_weights_train)
+        self.evaluate(X_test, y_test, 'test', sample_weights_test)
 
     def _define_model(self, params=None):
         default_params = {
@@ -112,8 +115,8 @@ class XGBoostMulticlassClassifier:
             }
         else:
             param_grid = {
-                'max_depth': [3, 5, 7],
-                'n_estimators': [50, 100, 200],
+                'max_depth': [15, 20],
+                'n_estimators': [1500, 2000],
             }
 
         base_model = self._define_model()
@@ -135,33 +138,63 @@ class XGBoostMulticlassClassifier:
         
         return grid_search.best_params_
 
-    def evaluate(self, X, y, dataset_name):
+    def evaluate(self, X, y, dataset_name, instance_weights=None):
         if self.model is None:
             raise ValueError("Model is not trained. Call model.train() first.")
 
         y_pred = self.model.predict(X)
 
-        # Calculate metrics
+        # === Unweighted metrics ===
         accuracy = accuracy_score(y, y_pred)
         precision = precision_score(y, y_pred, average='weighted', zero_division=0)
         recall = recall_score(y, y_pred, average='weighted', zero_division=0)
         f1 = f1_score(y, y_pred, average='weighted', zero_division=0)
-        report = classification_report(y, y_pred, target_names=[str(label) for label in self.labels], zero_division=0)
+        report = classification_report(
+            y, y_pred,
+            target_names=[str(label) for label in self.labels],
+            zero_division=0
+        )
         conf_matrix = confusion_matrix(y, y_pred)
 
-        # Save logs and reports with dataset name
+        # === Weighted metrics (if instance_weights is provided) ===
+        if instance_weights is not None:
+            weighted_accuracy = accuracy_score(y, y_pred, sample_weight=instance_weights)
+            weighted_precision = precision_score(y, y_pred, average='weighted', zero_division=0, sample_weight=instance_weights)
+            weighted_recall = recall_score(y, y_pred, average='weighted', zero_division=0, sample_weight=instance_weights)
+            weighted_f1 = f1_score(y, y_pred, average='weighted', zero_division=0, sample_weight=instance_weights)
+            weighted_report = classification_report(
+                y, y_pred,
+                target_names=[str(label) for label in self.labels],
+                zero_division=0,
+                sample_weight=instance_weights
+            )
+        else:
+            weighted_accuracy = weighted_precision = weighted_recall = weighted_f1 = None
+            weighted_report = None
+
+        # === Save logs ===
         log_data = {
             "dataset": dataset_name,
-            "accuracy": accuracy,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
-            "confusion_matrix": conf_matrix.tolist()
+            "unweighted": {
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "f1_score": f1,
+                "confusion_matrix": conf_matrix.tolist()
+            },
         }
+
+        if instance_weights is not None:
+            log_data["weighted"] = {
+                "accuracy": weighted_accuracy,
+                "precision": weighted_precision,
+                "recall": weighted_recall,
+                "f1_score": weighted_f1,
+            }
 
         log_path = os.path.join(self.training_dir, f"{dataset_name}_training_log.json")
         report_path = os.path.join(self.training_dir, f"{dataset_name}_classification_report.txt")
-        matrix_path = os.path.join(self.training_dir, f"{dataset_name}_confusion_matrix.png")
+        weighted_report_path = os.path.join(self.training_dir, f"{dataset_name}_weighted_classification_report.txt")
 
         with open(log_path, "w") as log_file:
             json.dump(log_data, log_file, indent=4)
@@ -169,15 +202,28 @@ class XGBoostMulticlassClassifier:
         with open(report_path, "w") as report_file:
             report_file.write(report)
 
-        # Print logs
-        print(f'[{dataset_name.upper()}] Accuracy: {accuracy:.4f}')
-        print(f'[{dataset_name.upper()}] Precision: {precision:.4f}')
-        print(f'[{dataset_name.upper()}] Recall: {recall:.4f}')
-        print(f'[{dataset_name.upper()}] F1 Score: {f1:.4f}')
-        print(f'[{dataset_name.upper()}] Classification Report:')
+        if instance_weights is not None:
+            with open(weighted_report_path, "w") as report_file:
+                report_file.write(weighted_report)
+
+        # === Print logs ===
+        print(f'[{dataset_name.upper()}] Unweighted Accuracy: {accuracy:.4f}')
+        print(f'[{dataset_name.upper()}] Unweighted Precision: {precision:.4f}')
+        print(f'[{dataset_name.upper()}] Unweighted Recall: {recall:.4f}')
+        print(f'[{dataset_name.upper()}] Unweighted F1 Score: {f1:.4f}')
+        print(f'[{dataset_name.upper()}] Unweighted Classification Report:')
         print(report)
 
+        if instance_weights is not None:
+            print(f'[{dataset_name.upper()}] Weighted Accuracy: {weighted_accuracy:.4f}')
+            print(f'[{dataset_name.upper()}] Weighted Precision: {weighted_precision:.4f}')
+            print(f'[{dataset_name.upper()}] Weighted Recall: {weighted_recall:.4f}')
+            print(f'[{dataset_name.upper()}] Weighted F1 Score: {weighted_f1:.4f}')
+            print(f'[{dataset_name.upper()}] Weighted Classification Report:')
+            print(weighted_report)
+   
         # Plot Confusion Matrix
+        matrix_path = os.path.join(self.training_dir, f"{dataset_name}_confusion_matrix.png")
         plt.figure(figsize=(8, 6))
         sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=self.labels, yticklabels=self.labels)
         plt.xlabel('Predicted')
@@ -213,16 +259,16 @@ if __name__ == "__main__":
     # X, y = X.iloc[:20000, :], y.iloc[:20000, :]
 
     # train XGBoost ML model for multiclass classification  
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_accuracy'), use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring='accuracy')
 
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_accuracy_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_accuracy_standardize'), use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     # model.train(X, y, scoring='accuracy')
     
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1', use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_f1'), use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_f1_standardize', use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_f1_standardize'), use_instance_weights=False, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
     # weights = {
@@ -237,22 +283,28 @@ if __name__ == "__main__":
     #     8: 20,   # "BFS-LL-0-0"
     #     9: 100   # "DFS-AD-0-0"
     # }
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_accuracy', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_manual_weights_accuracy'), use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring='accuracy')
 
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_manual_weights_f1', use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_manual_weights_f1'), use_instance_weights=True, manual_weights=weights, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_accuracy'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring='accuracy')
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_accuracy_standardize_extended_grid', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_accuracy_standardize_extended_grid'), use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring='accuracy')
 
-    # model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1', use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_f1'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    model = XGBoostMulticlassClassifier(labels, '../models/model_xgboost_auto_weights_f1_standardize_extended_grid', use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_f1_standardize_extended_grid'), use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+
+    model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+
+
+
 
 
