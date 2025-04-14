@@ -1,0 +1,9 @@
+{"max_depth": 30, "n_estimators": 3000}
+
+
+            param_grid = {
+                'max_depth': [15, 30],
+                'n_estimators': [300, 1000, 3000],
+            }
+
+

@@ -115,8 +115,8 @@ class XGBoostMulticlassClassifier:
             }
         else:
             param_grid = {
-                'max_depth': [20],
-                'n_estimators': [2000],
+                'max_depth': [15, 30],
+                'n_estimators': [300, 1000, 3000],
             }
 
         base_model = self._define_model()
@@ -301,8 +301,11 @@ if __name__ == "__main__":
     # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_f1_standardize_extended_grid'), use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
+
+    model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom_accuracy'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    model.train(X, y, scoring='accuracy')
 
 
 
