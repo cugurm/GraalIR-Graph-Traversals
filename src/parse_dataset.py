@@ -6,13 +6,13 @@ import numpy as np
 import pandas as pd 
 from matplotlib import pyplot as plt
 
-DATASET_CSV = '../data_v2/dataset.csv'
-DATASET_JSON = '../data_v2/dataset.json'
-STATS_DIR = '../stats_v2/'
+DATASET_CSV = '../data_v3/dataset.csv'
+DATASET_JSON = '../data_v3/dataset.json'
+STATS_DIR = '../stats_v3/'
 
 """
 [
-    {
+ {
         "name": "Harness.main(java.lang.String[])",
         "number of nodes": 20,
         "number of edges": 19,
@@ -25,36 +25,40 @@ STATS_DIR = '../stats_v2/'
         "max cardinality": 2,
         "avg cardinality including binary splits": 2.0,
         "avg cardinality excluding binary splits": 0.0,
+        "ratio nodes edges": 1.0526315789473684,
+        "ratio edges nodes": 0.95,
+        "min degree": 2,
+        "max degree": 3,
+        "avg degree": 2.888888888888889,
+        "coefficient variation degrees": 0.10878565864408425,
+        "entropy of distributions degrees": 0.5032583347756457,
+        "min in degree": 1,
+        "max in degree": 1,
+        "avg in degree": 1.0,
+        "coefficient variation in degrees": 0.0,
+        "entropy of distributions in degrees": 0.0,
+        "min out degree": 1,
+        "max out degree": 2,
+        "avg out degree": 1.9,
+        "coefficient variation out degrees": 0.15789473684210525,
+        "entropy of distributions out degrees": 0.46899559358928117,
         "configuration": "BFS-EQ-16-0",
         "avg time": 1964.46875
-    },
-    {
-        "name": "Harness.makeHarnessClassLoader()",
-        "number of nodes": 34,
-        "number of edges": 33,
-        "depth": 13,
-        "width": 5,
-        "diameter": 14,
-        "number of binary splits": 15,
-        "number of non binary splits": 0,
-        "total number of splits": 15,
-        "max cardinality": 2,
-        "avg cardinality including binary splits": 2.0,
-        "avg cardinality excluding binary splits": 0.0,
-        "configuration": "BFS-EQ-16-0",
-        "avg time": 3144.625
     },
     ...
 ]
 """
 
 FEATURE_NAMES = ('number of nodes', 'number of edges', 'depth', 'width', 'diameter', 'number of binary splits', 'number of non binary splits', 'total number of splits', 
-                 'max cardinality', 'avg cardinality including binary splits', 'avg cardinality excluding binary splits')
+                 'max cardinality', 'avg cardinality including binary splits', 'avg cardinality excluding binary splits', 
+                 'ratio nodes edges', 'ratio edges nodes', 'min degree', 'max degree', 'avg degree', 'coefficient variation degrees', 'entropy of distributions degrees', 
+                 'min in degree', 'max in degree', 'avg in degree', 'coefficient variation in degrees', 'entropy of distributions in degrees', 
+                 'min out degree', 'max out degree', 'avg out degree', 'coefficient variation out degrees', 'entropy of distributions out degrees')
 LABELS = ('BFS-EQ-16-0', 'DFS-ES-16-0', 'BFS-EQ-64-0', 'DFS-LL-0-0', 'DFS-ES-256-0', 'DFS-ES-64-0', 'BFS-EQ-256-0', 'BFS-AD-0-0', 'BFS-LL-0-0', 'DFS-AD-0-0')
 
-DATASET_X = '../data_v2/dataset_x.csv'
-DATASET_Y = '../data_v2/dataset_y.csv'
-DATASET_CONFIG = '../data_v2/dataset_config.json'
+DATASET_X = '../data_v3/dataset_x.csv'
+DATASET_Y = '../data_v3/dataset_y.csv'
+DATASET_CONFIG = '../data_v3/dataset_config.json'
 
 def parse_feature_vector(data: dict) -> list[int]:
     """
