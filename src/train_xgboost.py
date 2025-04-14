@@ -19,11 +19,11 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-DATASET_X = '../data_v2/dataset_x.csv'
-DATASET_Y = '../data_v2/dataset_y.csv'
-DATASET_CONFIG = '../data_v2/dataset_config.json'
+DATASET_X = '../data_v3/dataset_x.csv'
+DATASET_Y = '../data_v3/dataset_y.csv'
+DATASET_CONFIG = '../data_v3/dataset_config.json'
 RANDOM_STATE = 1234
-MODELS_DIR = '../models_v2/'
+MODELS_DIR = '../models_v3/'
 
 
 class XGBoostMulticlassClassifier:
@@ -115,8 +115,8 @@ class XGBoostMulticlassClassifier:
             }
         else:
             param_grid = {
-                'max_depth': [15, 20],
-                'n_estimators': [1500, 2000],
+                'max_depth': [20],
+                'n_estimators': [2000],
             }
 
         base_model = self._define_model()
