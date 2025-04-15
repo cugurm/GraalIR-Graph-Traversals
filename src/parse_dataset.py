@@ -156,5 +156,5 @@ if __name__ == "__main__":
     y.to_csv(DATASET_Y, index=False)
     y_binary.to_csv(DATASET_Y_BINARY, index=False)
     with open(DATASET_CONFIG, 'w') as fp:
-        json.dump({'labels': LABELS, 'labels binary': LABELS_BINARY, 'ids': ids}, fp)
+        json.dump({'labels': LABELS, 'labels binary': LABELS_BINARY, 'feature names': FEATURE_NAMES, 'ids': ids}, fp)
     

@@ -19,16 +19,18 @@ from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-DATASET_X = '../data_v3/dataset_x.csv'
-DATASET_Y = '../data_v3/dataset_y.csv'
-DATASET_CONFIG = '../data_v3/dataset_config.json'
+DATASET_X = '../data_v4/dataset_x.csv'
+DATASET_Y = '../data_v4/dataset_y.csv'
+DATASET_Y_BINARY = '../data_v4/dataset_y_binary.csv'
+DATASET_CONFIG = '../data_v4/dataset_config.json'
 RANDOM_STATE = 1234
-MODELS_DIR = '../models_v3/'
+MODELS_DIR = '../models_v4/'
 
 
 class XGBoostMulticlassClassifier:
-    def __init__(self, labels, training_dir, use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE):
+    def __init__(self, labels, feature_names, training_dir, use_instance_weights=False, manual_weights=None, standardize=False, random_state=RANDOM_STATE):
         self.labels = labels
+        self.feature_names = feature_names
 
         if os.path.exists(training_dir):
             print('Existring training directory: {}..'.format(training_dir))
@@ -75,6 +77,9 @@ class XGBoostMulticlassClassifier:
         self.evaluate(X_train, y_train, 'training', sample_weights_train)
         self.evaluate(X_test, y_test, 'test', sample_weights_test)
 
+        # Plot feature importance
+        XGBoostMulticlassClassifier.analyse_model(self.model, self.feature_names, self.training_dir, plot_n=25)
+
     def _define_model(self, params=None):
         default_params = {
             'objective': 'multi:softmax',
@@ -115,8 +120,8 @@ class XGBoostMulticlassClassifier:
             }
         else:
             param_grid = {
-                'max_depth': [15, 30],
-                'n_estimators': [300, 1000, 3000],
+                'max_depth': [20],
+                'n_estimators': [2000],
             }
 
         base_model = self._define_model()
@@ -232,6 +237,58 @@ class XGBoostMulticlassClassifier:
         plt.tight_layout()
         plt.savefig(matrix_path)
 
+    @staticmethod
+    def analyse_model(model, feature_names, output_dir, plot_n=25):
+        """
+        Extracts feature importance from a trained XGBoost model and saves it to a CSV file.
+
+        The extracted feature importance metrics:
+            - gain: Average gain of splits where the feature is used (higher is better).
+            - cover: Average coverage (number of samples affected) of splits where the feature is used.
+            - total_gain: Total gain across all splits involving the feature.
+            - total_cover: Total coverage across all splits involving the feature.
+            - weight: Number of times a feature is used in splits.
+
+        Parameters:
+            - model: Trained XGBoost model (XGBClassifier or XGBRegressor)
+        """
+        # dump feature importance
+        booster = model.get_booster()
+        booster.feature_names = feature_names
+        importance_types = ['gain', 'cover', 'total_gain', 'total_cover', 'weight']
+        importance_data = {feature: {} for feature in booster.feature_names}
+
+        for importance_type in importance_types:
+            importance_dict = booster.get_score(importance_type=importance_type)
+            for feature, value in importance_dict.items():
+                importance_data.setdefault(feature, {})[importance_type] = value
+
+        output_path = os.path.join(output_dir, 'feature_importance.csv')
+        importance_df = pd.DataFrame.from_dict(importance_data, orient='index').fillna(0)
+        importance_df.index.name = 'Feature'
+        importance_df.reset_index(inplace=True)
+        importance_df['Feature'] = importance_df['Feature'].apply(lambda x: booster.feature_names[int(x[1:])] if x[1:].isdigit() else x)
+        importance_df = importance_df.sort_values(by='gain', ascending=False)
+        importance_df.to_csv(output_path, index=False)
+        print('Feature importance saved to {}'.format(output_path))
+
+        # plot gini index
+        plot_path = os.path.join(output_dir, 'feature_importance.png')
+        assert plot_n < len(booster.feature_names), 'Can not plot gini index for more than {} features.'.format(len(booster.feature_names))
+        top_features = importance_df.head(plot_n)
+
+        plt.figure(figsize=(10, 6))
+        bars = plt.barh(top_features['Feature'], top_features['gain'], color='skyblue')
+        plt.xlabel('Gain')
+        plt.ylabel('Feature')
+        plt.title('Top {} Most Important Features (Gain)'.format(plot_n))
+        plt.gca().invert_yaxis()  # Invert y-axis for better visualization
+        for bar, value in zip(bars, top_features['gain']):
+            plt.text(bar.get_width(), bar.get_y() + bar.get_height()/2, '{:.2f}'.format(value), va='center')
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'feature_importance.png'))
+        print("Feature importance plot saved to {}".format(plot_path))
+
 
 if __name__ == "__main__":
 
@@ -240,9 +297,12 @@ if __name__ == "__main__":
     with open(DATASET_CONFIG, 'r') as fp:
         config = json.load(fp)
         labels = config['labels']
+        labels_binary = config['labels binary']
+        feature_names = config['feature names']
         ids = config['ids']
 
         print("Labels: {}".format(labels))
+        print("Labels binary: {}".format(labels_binary))
         print("Number of methods (ids): {}".format(len(ids)))
 
     print('Loading feature set..')
@@ -255,7 +315,15 @@ if __name__ == "__main__":
     print(y.head())
     print(y.shape)
 
+    y_binary = pd.read_csv(DATASET_Y_BINARY)
+    print(y_binary.head())
+    print(y_binary.shape)
+
     # pipeline design fix
+    # param_grid = {
+    #     'max_depth': [10, 20, 30],
+    #     'n_estimators': [500, 1000, 2000, 3000, 5000],
+    # }
     # X, y = X.iloc[:20000, :], y.iloc[:20000, :]
 
     # train XGBoost ML model for multiclass classification  
@@ -301,12 +369,76 @@ if __name__ == "__main__":
     # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_auto_weights_f1_standardize_extended_grid'), use_instance_weights=True, manual_weights=None, standardize=True, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_2000x20'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
     # model.train(X, y, scoring=make_scorer(f1_score, average='weighted'))
 
-    model = XGBoostMulticlassClassifier(labels, os.path.join(MODELS_DIR, 'model_xgboost_custom_accuracy'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
-    model.train(X, y, scoring='accuracy')
+    ##################################################################################################################################################
+    # Train XGBoost model for binary classification
 
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    # Computed class weights: {0: 0.5541467528816418, 1: 5.117082035306335}
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary_manual_weights'), use_instance_weights=True, manual_weights={0: 0.5, 1: 10}, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary_manual_weights_25'), use_instance_weights=True, manual_weights={0: 0.5, 1: 25}, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary_manual_weights_15'), use_instance_weights=True, manual_weights={0: 0.5, 1: 15}, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary_manual_weights_13'), use_instance_weights=True, manual_weights={0: 0.5, 1: 13}, standardize=False, random_state=RANDOM_STATE)
+    model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # TODO: accuracy
+    # param_grid = {
+    #     'max_depth': [20],
+    #     'n_estimators': [2000],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_2000x20_binary_accuracy'), use_instance_weights=True, manual_weights=False, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring='accuracy')
+
+    # param_grid = {
+    #     'max_depth': [10, 20, 30],
+    #     'n_estimators': [500, 1000, 2000, 3000, 5000],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_binary_autoweights_large'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [3, 5, 7, 10, 12],
+    #     'n_estimators': [100, 200, 300, 500, 700],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_binary_autoweights_small'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
+
+    # param_grid = {
+    #     'max_depth': [2, 3, 5, 7],
+    #     'n_estimators': [10, 20, 50, 100, 200, 300, 500, 700],
+    # }
+    # model = XGBoostMulticlassClassifier(labels_binary, feature_names, os.path.join(MODELS_DIR, 'model_xgboost_binary_autoweights_mini'), use_instance_weights=True, manual_weights=None, standardize=False, random_state=RANDOM_STATE)
+    # model.train(X, y_binary, scoring=make_scorer(f1_score, average='weighted'))
 
 
 

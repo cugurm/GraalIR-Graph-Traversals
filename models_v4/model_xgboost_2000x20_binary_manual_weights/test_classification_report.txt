@@ -1,0 +1,8 @@
+              precision    recall  f1-score   support
+
+         BFS       0.96      0.75      0.84     40016
+         DFS       0.24      0.74      0.37      4334
+
+    accuracy                           0.75     44350
+   macro avg       0.60      0.74      0.60     44350
+weighted avg       0.89      0.75      0.80     44350
