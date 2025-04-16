@@ -53,7 +53,7 @@ class XGBoostMulticlassClassifier:
         )
 
         # Compute instance weights if present
-        sample_weights_train = None
+        sample_weights_train, sample_weights_test = None, None
         if self.use_instance_weights:
             if self.manual_weights:
                 sample_weights_train = np.array([self.manual_weights[label] for label in y_train.iloc[:, 0]])
